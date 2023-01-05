@@ -1,0 +1,1374 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/SarahWaelkens/D012513A-Specialised-Bio-informatics-Machine-Learning/blob/main/practicum_I/Splice_Site_Prediction.ipynb.versie3\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 6,
+      "metadata": {
+        "id": "-MyLGyTxLx6G"
+      },
+      "outputs": [],
+      "source": [
+        "import warnings;\n",
+        "warnings.filterwarnings('ignore');\n",
+        "import pandas as pd"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "VO24y4Jju21u"
+      },
+      "source": [
+        "# Splice site prediction"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ZhcU9Uucu21v"
+      },
+      "source": [
+        "Gene splicing is a post-transcriptional modification in which a single gene can code for multiple proteins. Gene Splicing is done in eukaryotes, prior to mRNA translation, by the differential inclusion or exclusion of regions of pre-mRNA. Gene splicing is an important source of protein diversity.\n",
+        "\n",
+        "The vast majority of splice sites are characterized by the presence of specific dimers on the intronic side of the splice site: \"GT\" for donor and \"AG\" for acceptor sites. In this project you will fit a classification model for acceptor splice site prediction in DNA sequences.\n",
+        "\n",
+        "This model will consider each AG in the DNA as a candidate acceptor site, extract a local context surrounding the candidate acceptor site, represent the candidate site as a feature vector and the predict the class ('acceptor site' or 'not acceptor site') by applying the model in the constructed feature vector.\n",
+        "\n",
+        "The folder that contains the annotated acceptor site data is on GitHub at the following location:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "xrdBiQtAu21v"
+      },
+      "outputs": [],
+      "source": [
+        "data_location = \"https://raw.githubusercontent.com/sdgroeve/D012513A-Specialised-Bio-informatics-Machine-Learning/main/practicum_I/\""
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ipJV7FSYLx6L"
+      },
+      "source": [
+        "The dataset we will use for fitting (training) our predictive model can be found in this comma-separated `.csv` file:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "id": "bDt-FF8jLx6L"
+      },
+      "outputs": [],
+      "source": [
+        "data_name = \"acceptor_site_dataset.csv\""
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "jZazEnk_Lx6M"
+      },
+      "source": [
+        "Read this `.csv` file from the `data_location` folder into a Pandas DataFrame called `data`: "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 7,
+      "metadata": {
+        "id": "kZin_QP1Lx6M"
+      },
+      "outputs": [],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "data = pd.read_csv(data_location + data_name)\n",
+        "\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "jz9fxtXRLx6N"
+      },
+      "source": [
+        "Print the first 5 rows in `data`:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 8,
+      "metadata": {
+        "id": "_lJt4Vopu212",
+        "outputId": "51d0373e-59bb-41dd-f418-aa90cfcaba68",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 206
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "                 sequence  label subset\n",
+              "0  TTTGAATTGTAGGTGTCCTGCT      1  train\n",
+              "1  TATTTTTTAAAGAACTGGAAGA      1  train\n",
+              "2  TTTCTTTTTCAGATGAAGAATG      1  train\n",
+              "3  TATTAATTTCAGTTTGGTTGTT      1  train\n",
+              "4  TAAAAATTTAAGTTCGTCCCGA      1  train"
+            ],
+            "text/html": [
+              "\n",
+              "  <div id=\"df-3c72d6dd-71af-47ee-a523-e1766a08f03b\">\n",
+              "    <div class=\"colab-df-container\">\n",
+              "      <div>\n",
+              "<style scoped>\n",
+              "    .dataframe tbody tr th:only-of-type {\n",
+              "        vertical-align: middle;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe tbody tr th {\n",
+              "        vertical-align: top;\n",
+              "    }\n",
+              "\n",
+              "    .dataframe thead th {\n",
+              "        text-align: right;\n",
+              "    }\n",
+              "</style>\n",
+              "<table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              "    <tr style=\"text-align: right;\">\n",
+              "      <th></th>\n",
+              "      <th>sequence</th>\n",
+              "      <th>label</th>\n",
+              "      <th>subset</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "    <tr>\n",
+              "      <th>0</th>\n",
+              "      <td>TTTGAATTGTAGGTGTCCTGCT</td>\n",
+              "      <td>1</td>\n",
+              "      <td>train</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>1</th>\n",
+              "      <td>TATTTTTTAAAGAACTGGAAGA</td>\n",
+              "      <td>1</td>\n",
+              "      <td>train</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>2</th>\n",
+              "      <td>TTTCTTTTTCAGATGAAGAATG</td>\n",
+              "      <td>1</td>\n",
+              "      <td>train</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>3</th>\n",
+              "      <td>TATTAATTTCAGTTTGGTTGTT</td>\n",
+              "      <td>1</td>\n",
+              "      <td>train</td>\n",
+              "    </tr>\n",
+              "    <tr>\n",
+              "      <th>4</th>\n",
+              "      <td>TAAAAATTTAAGTTCGTCCCGA</td>\n",
+              "      <td>1</td>\n",
+              "      <td>train</td>\n",
+              "    </tr>\n",
+              "  </tbody>\n",
+              "</table>\n",
+              "</div>\n",
+              "      <button class=\"colab-df-convert\" onclick=\"convertToInteractive('df-3c72d6dd-71af-47ee-a523-e1766a08f03b')\"\n",
+              "              title=\"Convert this dataframe to an interactive table.\"\n",
+              "              style=\"display:none;\">\n",
+              "        \n",
+              "  <svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\"viewBox=\"0 0 24 24\"\n",
+              "       width=\"24px\">\n",
+              "    <path d=\"M0 0h24v24H0V0z\" fill=\"none\"/>\n",
+              "    <path d=\"M18.56 5.44l.94 2.06.94-2.06 2.06-.94-2.06-.94-.94-2.06-.94 2.06-2.06.94zm-11 1L8.5 8.5l.94-2.06 2.06-.94-2.06-.94L8.5 2.5l-.94 2.06-2.06.94zm10 10l.94 2.06.94-2.06 2.06-.94-2.06-.94-.94-2.06-.94 2.06-2.06.94z\"/><path d=\"M17.41 7.96l-1.37-1.37c-.4-.4-.92-.59-1.43-.59-.52 0-1.04.2-1.43.59L10.3 9.45l-7.72 7.72c-.78.78-.78 2.05 0 2.83L4 21.41c.39.39.9.59 1.41.59.51 0 1.02-.2 1.41-.59l7.78-7.78 2.81-2.81c.8-.78.8-2.07 0-2.86zM5.41 20L4 18.59l7.72-7.72 1.47 1.35L5.41 20z\"/>\n",
+              "  </svg>\n",
+              "      </button>\n",
+              "      \n",
+              "  <style>\n",
+              "    .colab-df-container {\n",
+              "      display:flex;\n",
+              "      flex-wrap:wrap;\n",
+              "      gap: 12px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert {\n",
+              "      background-color: #E8F0FE;\n",
+              "      border: none;\n",
+              "      border-radius: 50%;\n",
+              "      cursor: pointer;\n",
+              "      display: none;\n",
+              "      fill: #1967D2;\n",
+              "      height: 32px;\n",
+              "      padding: 0 0 0 0;\n",
+              "      width: 32px;\n",
+              "    }\n",
+              "\n",
+              "    .colab-df-convert:hover {\n",
+              "      background-color: #E2EBFA;\n",
+              "      box-shadow: 0px 1px 2px rgba(60, 64, 67, 0.3), 0px 1px 3px 1px rgba(60, 64, 67, 0.15);\n",
+              "      fill: #174EA6;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert {\n",
+              "      background-color: #3B4455;\n",
+              "      fill: #D2E3FC;\n",
+              "    }\n",
+              "\n",
+              "    [theme=dark] .colab-df-convert:hover {\n",
+              "      background-color: #434B5C;\n",
+              "      box-shadow: 0px 1px 3px 1px rgba(0, 0, 0, 0.15);\n",
+              "      filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));\n",
+              "      fill: #FFFFFF;\n",
+              "    }\n",
+              "  </style>\n",
+              "\n",
+              "      <script>\n",
+              "        const buttonEl =\n",
+              "          document.querySelector('#df-3c72d6dd-71af-47ee-a523-e1766a08f03b button.colab-df-convert');\n",
+              "        buttonEl.style.display =\n",
+              "          google.colab.kernel.accessAllowed ? 'block' : 'none';\n",
+              "\n",
+              "        async function convertToInteractive(key) {\n",
+              "          const element = document.querySelector('#df-3c72d6dd-71af-47ee-a523-e1766a08f03b');\n",
+              "          const dataTable =\n",
+              "            await google.colab.kernel.invokeFunction('convertToInteractive',\n",
+              "                                                     [key], {});\n",
+              "          if (!dataTable) return;\n",
+              "\n",
+              "          const docLinkHtml = 'Like what you see? Visit the ' +\n",
+              "            '<a target=\"_blank\" href=https://colab.research.google.com/notebooks/data_table.ipynb>data table notebook</a>'\n",
+              "            + ' to learn more about interactive tables.';\n",
+              "          element.innerHTML = '';\n",
+              "          dataTable['output_type'] = 'display_data';\n",
+              "          await google.colab.output.renderOutput(dataTable, element);\n",
+              "          const docLink = document.createElement('div');\n",
+              "          docLink.innerHTML = docLinkHtml;\n",
+              "          element.appendChild(docLink);\n",
+              "        }\n",
+              "      </script>\n",
+              "    </div>\n",
+              "  </div>\n",
+              "  "
+            ]
+          },
+          "metadata": {},
+          "execution_count": 8
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "data.head(5)\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "rXgIExxtu216"
+      },
+      "source": [
+        "We can see that there are three columns in the dataset. \n",
+        "\n",
+        "The column `sequence` contains the local context DNA sequence. The nucleotide positions 11 and 12 in the sequence are the candidate acceptor site and have value \"A\" and \"G\" for all rows in the dataset. The local context consists of 10 nucleotides upstream en 10 nucleotides downstream the candidate acceptor site. \n",
+        "\n",
+        "The column `label` contains the class of the candidate acceptor site: 1 for \"is acceptor site\" and 0 for \"is not acceptor site\". \n",
+        "\n",
+        "The column `subset` indicates if the row (instance) is part of the trainset or the testset.\n",
+        "\n",
+        "Use the Pandas DataFrame `value_counts()` summary function to print the number of instances in the trainset and the testset:\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 9,
+      "metadata": {
+        "id": "PYhNkKz3u217",
+        "outputId": "67743bcd-7438-4956-a009-4b6cd37c34ed",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "train    2752\n",
+              "test      552\n",
+              "Name: subset, dtype: int64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 9
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "data.subset.value_counts()\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "teweqTUhu21_"
+      },
+      "source": [
+        "To fit a logistic regression model on the trainset we need to represent the local context DNA sequence as a numerical feature vector suitable for model fitting. This process is known as **feature engineering**. \n",
+        "\n",
+        "The \"AG\" dinucleotide in the middle of each local context sequence is the same for both classes, i.e. it does not provide any discriminative information. So, there is no rational behind computing features from this part of the local context sequence.\n",
+        "\n",
+        "Use the Pandas DataFrame `map()` method to remove the middle \"AG\" dinucleotides in the DNA sequences (don't create a new column):"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 11,
+      "metadata": {
+        "id": "Bb6NTDWxLx6P",
+        "outputId": "c4c81542-74af-4808-eb03-23f6d2701968",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "                 sequence  label subset\n",
+            "0  TTTGAATTGTAGGTGTCCTGCT      1  train\n",
+            "1  TATTTTTTAAAGAACTGGAAGA      1  train\n",
+            "2  TTTCTTTTTCAGATGAAGAATG      1  train\n",
+            "3  TATTAATTTCAGTTTGGTTGTT      1  train\n",
+            "4  TAAAAATTTAAGTTCGTCCCGA      1  train\n",
+            "               sequence  label subset\n",
+            "0  TTTGAATTGTGTGTCCTGCT      1  train\n",
+            "1  TATTTTTTAAAACTGGAAGA      1  train\n",
+            "2  TTTCTTTTTCATGAAGAATG      1  train\n",
+            "3  TATTAATTTCTTTGGTTGTT      1  train\n",
+            "4  TAAAAATTTATTCGTCCCGA      1  train\n"
+          ]
+        }
+      ],
+      "source": [
+        "print(data.head())\n",
+        "\n",
+        "###Start code here\n",
+        "data.sequence = data.sequence.map(lambda i: i[:10] + i[12:])\n",
+        "###End code here\n",
+        "\n",
+        "print(data.head())"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "SZkQumNiu22E"
+      },
+      "source": [
+        "Next, we create a feature for each of the nucleotide positions in the local context DNA sequence.\n",
+        "\n",
+        "The [pandas.Series.str.split](https://pandas.pydata.org/docs/reference/api/pandas.Series.str.split.html) function splits a string in a column (pandas.Series) from the beginning, at the specified delimiter string.\n",
+        "\n",
+        "I use this function to split the `sequence` column into one column for each nucleotide position. I also rename the resulting columns to better relfect their meaning: "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 12,
+      "metadata": {
+        "id": "B1IGFl3dLx6R",
+        "outputId": "9e126f58-6e8c-4c4b-bb41-75f3df3acb8d",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "     -10 -9 -8 -7 -6 -5 -4 -3 -2 -1  1  2  3  4  5  6  7  8  9 10\n",
+            "0      T  T  T  G  A  A  T  T  G  T  G  T  G  T  C  C  T  G  C  T\n",
+            "1      T  A  T  T  T  T  T  T  A  A  A  A  C  T  G  G  A  A  G  A\n",
+            "2      T  T  T  C  T  T  T  T  T  C  A  T  G  A  A  G  A  A  T  G\n",
+            "3      T  A  T  T  A  A  T  T  T  C  T  T  T  G  G  T  T  G  T  T\n",
+            "4      T  A  A  A  A  A  T  T  T  A  T  T  C  G  T  C  C  C  G  A\n",
+            "...   .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. ..\n",
+            "3299   T  T  T  G  A  A  G  T  T  T  C  T  T  C  C  T  T  C  T  C\n",
+            "3300   C  T  G  C  T  A  A  T  A  T  T  G  A  C  A  G  C  A  A  T\n",
+            "3301   T  T  C  C  A  A  A  T  A  T  G  A  A  A  A  T  C  G  A  A\n",
+            "3302   A  A  A  A  T  G  T  C  G  C  A  A  C  A  A  C  A  A  G  A\n",
+            "3303   A  G  A  A  G  T  A  T  G  G  G  T  G  G  A  A  T  G  T  T\n",
+            "\n",
+            "[3304 rows x 20 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "data_features = data.sequence.str.split('', expand=True).iloc[:,1:21]\n",
+        "data_features.columns = [\"%i\"%i for i in range(-10,0,1)] + [\"%i\"%i for i in range(1,11,1)]\n",
+        "\n",
+        "print(data_features)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "PF35D-gbLx6R"
+      },
+      "source": [
+        "Next you will map each of the nucleotides to a numerical value. Create a Python function `map_nucleotide_to_number()` that maps nucleotides A, C, G and T to 0, 1, 2 and 3 respectively:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 13,
+      "metadata": {
+        "id": "N9nsz212Lx6S",
+        "outputId": "d2297bdf-d109-4bb7-c4a5-74ccae2c7e90",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Function works for nucleotide A\n",
+            "Function works for nucleotide C\n",
+            "Function works for nucleotide G\n",
+            "Function works for nucleotide T\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "def map_nucleotide_to_number(x):\n",
+        "  if x == 'A':\n",
+        "    return 0\n",
+        "  elif x == 'C':\n",
+        "    return 1\n",
+        "  elif x == 'G':\n",
+        "    return 2\n",
+        "  else:\n",
+        "    return 3\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "for nucleotide, mapped_number in zip(['A','C','G','T'],range(4)):\n",
+        "    if map_nucleotide_to_number(nucleotide) != mapped_number:\n",
+        "        print(\"Function is not working for nucleotide %s\"%nucleotide)\n",
+        "    else:\n",
+        "        print(\"Function works for nucleotide %s\"%nucleotide)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "bxkHHWH3Lx6S"
+      },
+      "source": [
+        "You have seen the Pandas DataFrame functions `map()` and `apply()`. Similar to these functions, there is also the function `applymap()` that applies a function to every element of a DataFrame.\n",
+        "\n",
+        "Apply the `map_nucleotide_to_number()` you created to every element in the `data_features` DataFrame (write the resulting DataFrame to `data_features_numerical`):"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 14,
+      "metadata": {
+        "id": "DXUwBQiNLx6T",
+        "outputId": "152e7fac-a4bf-441f-9a61-4cc6fb2612f8",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "      -10  -9  -8  -7  -6  -5  -4  -3  -2  -1  1  2  3  4  5  6  7  8  9  10\n",
+            "0       3   3   3   2   0   0   3   3   2   3  2  3  2  3  1  1  3  2  1   3\n",
+            "1       3   0   3   3   3   3   3   3   0   0  0  0  1  3  2  2  0  0  2   0\n",
+            "2       3   3   3   1   3   3   3   3   3   1  0  3  2  0  0  2  0  0  3   2\n",
+            "3       3   0   3   3   0   0   3   3   3   1  3  3  3  2  2  3  3  2  3   3\n",
+            "4       3   0   0   0   0   0   3   3   3   0  3  3  1  2  3  1  1  1  2   0\n",
+            "...   ...  ..  ..  ..  ..  ..  ..  ..  ..  .. .. .. .. .. .. .. .. .. ..  ..\n",
+            "3299    3   3   3   2   0   0   2   3   3   3  1  3  3  1  1  3  3  1  3   1\n",
+            "3300    1   3   2   1   3   0   0   3   0   3  3  2  0  1  0  2  1  0  0   3\n",
+            "3301    3   3   1   1   0   0   0   3   0   3  2  0  0  0  0  3  1  2  0   0\n",
+            "3302    0   0   0   0   3   2   3   1   2   1  0  0  1  0  0  1  0  0  2   0\n",
+            "3303    0   2   0   0   2   3   0   3   2   2  2  3  2  2  0  0  3  2  3   3\n",
+            "\n",
+            "[3304 rows x 20 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "data_features_numerical = data_features.applymap(map_nucleotide_to_number)\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(data_features_numerical)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "X5HDyi7uLx6T"
+      },
+      "source": [
+        "Finally, I contruct the trainset and testset feature vectors based on the `subset` column in `data`:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 25,
+      "metadata": {
+        "id": "ja6_S7o-Lx6T"
+      },
+      "outputs": [],
+      "source": [
+        "X_train = data_features_numerical.loc[data.subset == \"train\"]\n",
+        "X_test = data_features_numerical.loc[data.subset == \"test\"]"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "55UHDdrGLx6U"
+      },
+      "source": [
+        "Create Pandas Series `y_train` and `y_test` that contain the classes for the DataFrames `X_train` and `X_test` respectively:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 15,
+      "metadata": {
+        "id": "pNwu1KE2Lx6U"
+      },
+      "outputs": [],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "y_train = data.label.loc[data.subset == \"train\"]\n",
+        "y_test = data.label.loc[data.subset == \"test\"]\n",
+        "\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "mFSP3h88Lx6U"
+      },
+      "source": [
+        "How many instances of class '0' are there in the trainset? How many of class '1'?"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 16,
+      "metadata": {
+        "id": "Z73Vhp-WLx6U",
+        "outputId": "57807cdc-2c5f-4b1a-eea1-e709afc4dbb1",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "0    2497\n",
+              "1     255\n",
+              "Name: label, dtype: int64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 16
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "y_train.value_counts()\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "2h0acfNaLx6V"
+      },
+      "source": [
+        "How many instances of class '0' are there in the testset? How many of class '1'?"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 20,
+      "metadata": {
+        "id": "glKAO3ZJLx6V",
+        "outputId": "a64d6542-d165-496f-eb17-38acedec6947",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "0    497\n",
+              "1     55\n",
+              "Name: label, dtype: int64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 20
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "y_test.value_counts()\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "0573K2rRu22W"
+      },
+      "source": [
+        "Initialize the `LogisticRegression` model from `sklearn.linear_model`: "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 21,
+      "metadata": {
+        "id": "W_QpEOrTLx6W",
+        "outputId": "8acd0dd0-f5cb-4bd7-d7e7-43b2a8172dcd",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "LogisticRegression()\n"
+          ]
+        }
+      ],
+      "source": [
+        "from sklearn.linear_model import LogisticRegression\n",
+        "\n",
+        "###Start code here\n",
+        "\n",
+        "lr_model = LogisticRegression()\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(lr_model)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "WYPXoNvzLx6W"
+      },
+      "source": [
+        "Fit the logistic regression model `lr_ model` on the trainset `X_train`:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 26,
+      "metadata": {
+        "id": "Hip_AJBALx6W",
+        "outputId": "05dfda2d-6385-405a-fb1b-734f0bebd320",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "LogisticRegression()"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 26
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "lr_model.fit(X_train, y_train)\n",
+        "###End code here"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "GMquhGBaLx6X"
+      },
+      "source": [
+        "Compute class predictions for the testset `X_test`:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 27,
+      "metadata": {
+        "id": "eQoU1Q9mLx6X",
+        "outputId": "aaf3bbc0-04c1-4633-bd97-0c65e8cd6961",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "[1 1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 1 0 0 1 0 1 0 1 0 0 1 1 0 1 0 0 0 1 1\n",
+            " 0 1 0 0 1 1 1 1 0 0 0 1 0 1 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0\n",
+            " 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "predictions = lr_model.predict(X_test)\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(predictions)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "46fTft9BLx6X"
+      },
+      "source": [
+        "Use the `accuracy_score()` function in `sklearn.metrics` to compute the accuracy of the predictions on the testset:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 29,
+      "metadata": {
+        "id": "jc7J8SrIu22X",
+        "outputId": "b524f877-5e32-4613-a035-723aea0c7c58",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "0.9202898550724637\n",
+            "[[485  12]\n",
+            " [ 32  23]]\n"
+          ]
+        }
+      ],
+      "source": [
+        "from sklearn.metrics import accuracy_score\n",
+        "from sklearn.metrics import confusion_matrix\n",
+        "\n",
+        "###Start code here\n",
+        "\n",
+        "score_acc = accuracy_score(y_test, predictions)\n",
+        "cm = confusion_matrix(y_test, predictions)\n",
+        "###Start code here\n",
+        "\n",
+        "print(score_acc)\n",
+        "print(cm)\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "BPu8YDA2u23D"
+      },
+      "source": [
+        "An accuracy above 90% seems like a good score. But is it? Let's consider a model that predicts class '0' for all test points:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 30,
+      "metadata": {
+        "id": "5kV1yMLOu23E",
+        "outputId": "c65bf502-b2d1-4614-b0ce-6b748e63e5f7",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
+          ]
+        }
+      ],
+      "source": [
+        "predictions_zero = [0]*len(y_test)\n",
+        "print(predictions_zero)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "efNP_I-Ju23I"
+      },
+      "source": [
+        "What is the accuracy of these predictions?"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 31,
+      "metadata": {
+        "id": "fmdBsSaou23K",
+        "outputId": "3da8e7c1-44c1-4580-b3bb-604d05f07949",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "0.9003623188405797\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "score_acc = accuracy_score(y_test, predictions_zero)\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(score_acc)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "0lZ3nJUPu23P"
+      },
+      "source": [
+        "So this should be a good score as well, even though the model did not learn anything.\n",
+        "\n",
+        "For classification tasks where the classes are highly imbalanced, accuracy is not a good metric to evaluate the generalization performance. In fact, if there are 0.1% \"AG\" dinucleotides in a genome that are true acceptor sites then a model that predicts class '0' for each \"AG\" would have an accuracy of 99.9%.\n",
+        "\n",
+        "You have seen how a ROC curve plots the true positive rate against the false positive rate. Both these metrics focus on the positive class, in our case the true acceptor sites. These metrics are much more suitable to evalute the performance of models on tasks with highly imbalanced classes. \n",
+        "\n",
+        "To transform a ROC curve into one metric we can use the area under the curve (AUC). This metric can be computed with the `roc_auc_score()` function in `sklearn.metrics`. \n",
+        "\n",
+        "What is the AUC score of the predictions computed on the testset?"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 32,
+      "metadata": {
+        "id": "nTjM_o7Iu23Q",
+        "outputId": "975c6578-6dac-4e2b-cf87-6d96d9f34e7a",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "0.6970184744832632\n",
+            "0.5\n"
+          ]
+        }
+      ],
+      "source": [
+        "from sklearn.metrics import roc_auc_score\n",
+        "\n",
+        "###Start code here\n",
+        "\n",
+        "score_auc = roc_auc_score(y_test, predictions)\n",
+        "score_auc1 = roc_auc_score(y_test, predictions_zero)\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(score_auc)\n",
+        "print(score_auc1)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "OtsruwQSLx6a"
+      },
+      "source": [
+        "Now, let's print the predictions again:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 33,
+      "metadata": {
+        "id": "9TyPfILnLx6a",
+        "outputId": "47ae5d74-58a1-47b6-c3df-22c8d164a947",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "[1 1 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 1 0 0 1 0 1 0 1 0 0 1 1 0 1 0 0 0 1 1\n",
+            " 0 1 0 0 1 1 1 1 0 0 0 1 0 1 1 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0\n",
+            " 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n",
+            " 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]\n"
+          ]
+        }
+      ],
+      "source": [
+        "print(predictions)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "JbuR3_0Uu23V"
+      },
+      "source": [
+        "These are predicted classes.\n",
+        "\n",
+        "To compute the AUC, we actually need these predictions to be scores (a continuous value).\n",
+        "\n",
+        "For logistic regression these scores are the class probabilities predicted by the model (a value between 0 and 1). \n",
+        "\n",
+        "We can obtain these scores with the `predict_proba()` function of the `LogisticRegression` module as follows:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 34,
+      "metadata": {
+        "id": "xMT2X0i7u23W",
+        "outputId": "e2073425-4fbf-43e0-87de-dc292e552119",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "       prob_0    prob_1\n",
+            "0    0.327520  0.672480\n",
+            "1    0.425903  0.574097\n",
+            "2    0.341907  0.658093\n",
+            "3    0.999413  0.000587\n",
+            "4    0.942077  0.057923\n",
+            "..        ...       ...\n",
+            "547  0.823318  0.176682\n",
+            "548  0.996326  0.003674\n",
+            "549  0.997360  0.002640\n",
+            "550  0.984624  0.015376\n",
+            "551  0.970995  0.029005\n",
+            "\n",
+            "[552 rows x 2 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "predictions = pd.DataFrame(lr_model.predict_proba(X_test),columns=[\"prob_0\",\"prob_1\"])\n",
+        "\n",
+        "print(predictions)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ecMykZJcu23h"
+      },
+      "source": [
+        "The first and second column contain the predicted probabilities for class '0' and '1' respectively. To compute the AUC we need to use the class probabilities of class '1'. \n",
+        "\n",
+        "Compute the AUC from the class probabilities of class '1' computed from the testset: "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 35,
+      "metadata": {
+        "id": "k7Zj60JBu23i",
+        "outputId": "25c93d92-c021-46da-d468-218dffe7dac9",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "0.897969635997805\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "\n",
+        "score_auc = roc_auc_score(y_test, predictions.prob_1)\n",
+        "\n",
+        "###End code here\n",
+        "\n",
+        "print(score_auc)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "EudhUPu-u23o"
+      },
+      "source": [
+        "Is this good generalization performance?\n",
+        "\n",
+        "Transforming categorical features into ordered integers is maybe not a good idea as the nucleotides don't have any ordering (the columns are not ordinal features). \n",
+        "\n",
+        "It is better to transform a categorical feature into one binary feature for each category. This is known as [one-hot encoding](https://en.wikipedia.org/wiki/One-hot). \n",
+        "\n",
+        "We can create a one-hot encoded feature vector of categorical feature columns using the Pandas function `get_dummies()` as follows:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 36,
+      "metadata": {
+        "id": "TFZGymYTLx6b",
+        "outputId": "4c7bbe3f-66b1-4fa7-a306-2222ec5451a9",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "      -10_A  -10_C  -10_G  -10_T  -9_A  -9_C  -9_G  -9_T  -8_A  -8_C  ...  \\\n",
+            "0         0      0      0      1     0     0     0     1     0     0  ...   \n",
+            "1         0      0      0      1     1     0     0     0     0     0  ...   \n",
+            "2         0      0      0      1     0     0     0     1     0     0  ...   \n",
+            "3         0      0      0      1     1     0     0     0     0     0  ...   \n",
+            "4         0      0      0      1     1     0     0     0     1     0  ...   \n",
+            "...     ...    ...    ...    ...   ...   ...   ...   ...   ...   ...  ...   \n",
+            "3299      0      0      0      1     0     0     0     1     0     0  ...   \n",
+            "3300      0      1      0      0     0     0     0     1     0     0  ...   \n",
+            "3301      0      0      0      1     0     0     0     1     0     1  ...   \n",
+            "3302      1      0      0      0     1     0     0     0     1     0  ...   \n",
+            "3303      1      0      0      0     0     0     1     0     1     0  ...   \n",
+            "\n",
+            "      8_G  8_T  9_A  9_C  9_G  9_T  10_A  10_C  10_G  10_T  \n",
+            "0       1    0    0    1    0    0     0     0     0     1  \n",
+            "1       0    0    0    0    1    0     1     0     0     0  \n",
+            "2       0    0    0    0    0    1     0     0     1     0  \n",
+            "3       1    0    0    0    0    1     0     0     0     1  \n",
+            "4       0    0    0    0    1    0     1     0     0     0  \n",
+            "...   ...  ...  ...  ...  ...  ...   ...   ...   ...   ...  \n",
+            "3299    0    0    0    0    0    1     0     1     0     0  \n",
+            "3300    0    0    1    0    0    0     0     0     0     1  \n",
+            "3301    1    0    1    0    0    0     1     0     0     0  \n",
+            "3302    0    0    0    0    1    0     1     0     0     0  \n",
+            "3303    1    0    0    0    0    1     0     0     0     1  \n",
+            "\n",
+            "[3304 rows x 80 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "data_features_onehot_encoding = pd.get_dummies(data_features)\n",
+        "\n",
+        "print(data_features_onehot_encoding)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "UG9A9oIKLx6c"
+      },
+      "source": [
+        "What it the AUC on the testset for a model fitted on these one-hot encoded feature vectors in the trainset? "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 37,
+      "metadata": {
+        "id": "tnYXdrQ5Lx6c",
+        "outputId": "4c7b0af3-e873-47a0-b278-39dc5639213b",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "0.9851472471190781\n"
+          ]
+        }
+      ],
+      "source": [
+        "###Start code here\n",
+        "X_train = data_features_onehot_encoding.loc[data.subset == \"train\"]\n",
+        "X_test = data_features_onehot_encoding.loc[data.subset == \"test\"]\n",
+        "\n",
+        "lr_model.fit(X_train, y_train)\n",
+        "predi = pd.DataFrame(lr_model.predict_proba(X_test), columns = ['pr0', 'pr1'])\n",
+        "score_auc = roc_auc_score(y_test, predi.pr1)\n",
+        "###End code here\n",
+        "\n",
+        "print(score_auc)\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "collapsed": true,
+        "id": "wRe1CLnUu24l"
+      },
+      "source": [
+        "Do you observe better AUC for the one-hot encoded feature vectors?\n",
+        "\n",
+        "In scikit-learn a fitted logistic regression model has the fitted modelparameter values stored in `.coef_[0]`:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 38,
+      "metadata": {
+        "id": "8f-NBEUt4AjE",
+        "outputId": "b2105eb5-015e-4e7e-d264-e7bb6e3dda6b",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "[ 0.18535922 -0.17254465 -0.64432076  0.63155105  0.36323346  0.09664242\n",
+            " -0.82511475  0.36528374  0.42644274 -0.00627464 -1.01475009  0.59462685\n",
+            "  0.2943751  -0.68264436 -0.36023434  0.74854847  0.62222768 -1.22208009\n",
+            " -0.13600194  0.73589922  0.10617957  0.17511685 -0.97650548  0.69525393\n",
+            " -0.30416484 -0.40788395 -1.10386006  1.81595372 -0.21790803 -1.20477227\n",
+            " -1.11330282  2.53602798  0.0671242  -0.15447455 -1.36278366  1.45017887\n",
+            " -0.6199823   2.10008164 -1.93416747  0.454113    0.31268108 -0.83265987\n",
+            "  1.45490251 -0.93487886 -0.35797043  0.26184045 -0.08013915  0.17631399\n",
+            " -0.0247569   0.23742285  0.40959851 -0.6222196  -0.31194619  0.29535498\n",
+            "  0.42828426 -0.41164818 -0.20320261  0.19427966  0.3345353  -0.32556748\n",
+            " -0.30042054  0.66079598  0.26838713 -0.62871771 -0.20485503  0.36583118\n",
+            "  0.2601907  -0.42112198 -0.24838684  0.44239752  0.33979426 -0.53376007\n",
+            " -0.21496153  0.00264659  0.35339661 -0.1410368  -0.69564289  0.42731881\n",
+            "  0.38151408 -0.11314514]\n"
+          ]
+        }
+      ],
+      "source": [
+        "print(lr_model.coef_[0])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "wdPAICuc4NWT"
+      },
+      "source": [
+        "For logistic regression this is one modelparameter for each feature (plus the interecept, which is not in `.coef_[0]`). \n",
+        "\n",
+        "Recall that for logistic regression a prediction is made by multiplying each fitted modelparameter with the corresponding feature, summing them and then squeezing this sum between 0 and 1 with the logistic function. \n",
+        "\n",
+        "Since all features have values 0 or 1, the modelparameter values indicate the contribution (importance) of a feature during prediction.\n",
+        "\n",
+        "The following code creates a Pandas DataFrame `model_parameters` with two columns: `feature` that is the name of the feature that the modelparameter is associated with, and `parameter_value` that is the value of the fitted modelparameter:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 39,
+      "metadata": {
+        "id": "rY2jtt1gLx6d",
+        "outputId": "29f02f91-ee82-4209-8f4b-3961ff37ab77",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "   feature  parameter_value\n",
+            "0    -10_A         0.185359\n",
+            "1    -10_C        -0.172545\n",
+            "2    -10_G        -0.644321\n",
+            "3    -10_T         0.631551\n",
+            "4     -9_A         0.363233\n",
+            "..     ...              ...\n",
+            "75     9_T        -0.141037\n",
+            "76    10_A        -0.695643\n",
+            "77    10_C         0.427319\n",
+            "78    10_G         0.381514\n",
+            "79    10_T        -0.113145\n",
+            "\n",
+            "[80 rows x 2 columns]\n"
+          ]
+        }
+      ],
+      "source": [
+        "model_parameters = pd.DataFrame()\n",
+        "model_parameters[\"feature\"] = data_features_onehot_encoding.columns\n",
+        "model_parameters[\"parameter_value\"] = lr_model.coef_[0]\n",
+        "print(model_parameters)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "HA7o9tUmLx6d"
+      },
+      "source": [
+        "A Pandas DataFrame also has functions to [plot the data](https://pandas.pydata.org/docs/user_guide/visualization.html). Here I plot the modelparameter values as a bar chart:"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "EEEgAeMCLx6d"
+      },
+      "outputs": [],
+      "source": [
+        "model_parameters.plot.bar(x=\"feature\",y=\"parameter_value\",figsize=(20,12))"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "l_W6oyVILx6e"
+      },
+      "source": [
+        "What are the most important one-hot encoded features for the fitted logistic regression model?"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "bI8JC6INLx6e"
+      },
+      "source": []
+    }
+  ],
+  "metadata": {
+    "colab": {
+      "name": "2.1._Classification_solutions.ipynb",
+      "provenance": [],
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "display_name": "Python 3 (ipykernel)",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.9.12"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
